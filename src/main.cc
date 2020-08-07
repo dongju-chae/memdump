@@ -43,13 +43,13 @@ class MemDump {
     }
 
     int show () {
-      int fd = open ("/dev/mem", O_RDWR | O_SYNC);
+      int fd = open ("/dev/mem", O_RDONLY | O_SYNC);
       if (fd < 0) {
         std::cerr << strerror (errno) << "\n";
         return -errno;
       }
 
-      void *addr = mmap (0, ALIGNED_SIZE (size_), PROT_READ | PROT_WRITE,
+      void *addr = mmap (0, ALIGNED_SIZE (size_), PROT_READ,
           MAP_SHARED, fd, addr_);
       if (addr == MAP_FAILED) {
         std::cerr << strerror (errno) << "\n";
@@ -91,7 +91,7 @@ class MemDump {
 
         for (size_t i = 0; i < 16; i++) {
           if (i % 8 == 0) std::cout << ' ';
-          std::cout << ' ' << std::setw(2) << (unsigned int)(unsigned char)(addr[idx]);
+          std::cout << ' ' << std::setw(2) << (unsigned int)(unsigned char)(addr[idx + i]);
         }
         std::cout << "\n";
 
