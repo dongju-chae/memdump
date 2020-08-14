@@ -1,6 +1,5 @@
 #include <iostream>
 #include <iomanip>
-#include <fstream>
 #include <sstream>
 
 #include <unistd.h>
@@ -15,9 +14,11 @@
 #define PFN_UP(x)  (((x) + PAGE_SIZE - 1) >> PAGE_SHIFT)
 #define ALIGNED_SIZE(x) (PFN_UP(x) * PAGE_SIZE)
 
+#define DEFAULT_GRAN (8)
+
 class MemDump {
   public:
-    MemDump () {}
+    MemDump () { gran_ = DEFAULT_GRAN; }
 
     int init (std::string addr_str, std::string size_str) {
       std::istringstream addr_ss (addr_str);
@@ -59,11 +60,11 @@ class MemDump {
       if (path_.empty ()) {
         print_hex_dump (static_cast<char *>(addr), size_);
       } else {
-        std::ofstream of;
-
-        of.open (path_);
-        if (of.good ()) {
-          of.write (static_cast<char *>(addr), size_);
+        FILE *fp = fopen (path_.c_str(), "wb");
+        if (fp) {
+          for (size_t i = 0; i < size_; i += gran_)
+            fwrite (static_cast<char *>(addr) + i, gran_, 1, fp);
+          fclose (fp);
         } else {
           std::cerr << strerror (errno) << "\n";
         }
@@ -73,6 +74,10 @@ class MemDump {
       close (fd);
 
       return 0;
+    }
+
+    void set_granularity (std::string gran) {
+      gran_ = std::stoll (gran);
     }
 
     void set_file_path (std::string path) {
@@ -103,6 +108,7 @@ class MemDump {
   private:
     unsigned long addr_;
     unsigned long size_;
+    size_t gran_;
 
     std::string path_;
 };
@@ -112,7 +118,8 @@ void print_usage (const char *path)
   std::cerr << "Usage: " << path << " [options] <hex:addr> <hex:size>\n";
   std::cerr << "Options\n";
   std::cerr << "  -f <arg>\tSet filepath for memory dump\n";
-  std::cerr << "  -t\t\tShow the usage of this program\n";
+  std::cerr << "  -g <arg>\tSet data granularity for memory dump\n";
+  std::cerr << "  -h\t\tShow the usage of this program\n";
 }
 
 int main (int argc, char **argv)
@@ -122,10 +129,13 @@ int main (int argc, char **argv)
 
   optind = 0;
   opterr = 0;
-  while ((c = getopt (argc, argv, "hf:")) != -1) {
+  while ((c = getopt (argc, argv, "hg:f:")) != -1) {
     switch (c) {
       case 'f':
         dump.set_file_path (optarg);
+        break;
+      case 'g':
+        dump.set_granularity (optarg);
         break;
       case '?':
         if (optopt == 'f')
